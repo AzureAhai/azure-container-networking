@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/azure-container-networking/processlock"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -266,6 +267,13 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: "",
 	},
+	{
+		Name:         acn.OptTelemetryService,
+		Shorthand:    acn.OptTelemetryServiceAlias,
+		Description:  "Flag to start telemetry service to receive telemetry events from CNI. Default, disabled.",
+		Type:         "bool",
+		DefaultValue: false,
+	},
 }
 
 // init() is executed before main() whenever this package is imported
@@ -367,6 +375,14 @@ func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService
 	return nil
 }
 
+func startTelemetryService(ctx context.Context) {
+	tbtemp := telemetry.NewTelemetryBuffer()
+	tbtemp.Cleanup(telemetry.FdName)
+	tb := telemetry.NewTelemetryBuffer()
+	tb.StartServer()
+	tb.PushData(rootCtx)
+}
+
 // Main is the entry point for CNS.
 func main() {
 	// Initialize and parse command line arguments.
@@ -396,6 +412,7 @@ func main() {
 	clientDebugCmd := acn.GetArg(acn.OptDebugCmd).(string)
 	clientDebugArg := acn.GetArg(acn.OptDebugArg).(string)
 	cmdLineConfigPath := acn.GetArg(acn.OptCNSConfigPath).(string)
+	telemetryDaemonEnabled := acn.GetArg(acn.OptTelemetryService).(bool)
 
 	if vers {
 		printVersion()
@@ -473,6 +490,10 @@ func main() {
 		}
 
 		logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+	}
+
+	if telemetryDaemonEnabled {
+		go startTelemetryService(rootCtx)
 	}
 
 	// Log platform information.

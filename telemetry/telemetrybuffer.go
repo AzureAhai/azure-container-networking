@@ -5,6 +5,7 @@ package telemetry
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -171,7 +172,7 @@ func (tb *TelemetryBuffer) Connect() error {
 }
 
 // PushData - PushData running an instance if it isn't already being run elsewhere
-func (tb *TelemetryBuffer) PushData() {
+func (tb *TelemetryBuffer) PushData(ctx context.Context) {
 	for {
 		select {
 		case report := <-tb.data:
@@ -180,6 +181,9 @@ func (tb *TelemetryBuffer) PushData() {
 			tb.mutex.Unlock()
 		case <-tb.cancel:
 			log.Logf("[Telemetry] server cancel event")
+			goto EXIT
+		case <-ctx.Done():
+			log.Logf("[Telemetry] received context done event")
 			goto EXIT
 		}
 	}
